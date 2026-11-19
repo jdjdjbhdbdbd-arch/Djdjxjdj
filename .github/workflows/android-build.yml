@@ -1,0 +1,73 @@
+
+name: Build Astral Echo APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download repository
+        uses: actions/checkout@v4
+
+      - name: Find and extract game project
+        run: |
+          mkdir -p project
+
+          if [ -f "AstralEcho_3D_Prototype.zip" ]; then
+            ARCHIVE="AstralEcho_3D_Prototype.zip"
+          elif [ -f "AstralEchoAndroid_Enhanced.zip" ]; then
+            ARCHIVE="AstralEchoAndroid_Enhanced.zip"
+          elif [ -f "AstralEchoAndroid_CloudBuild.zip" ]; then
+            ARCHIVE="AstralEchoAndroid_CloudBuild.zip"
+          else
+            echo "ERROR: Game ZIP not found!"
+            ls -la
+            exit 1
+          fi
+
+          echo "Extracting $ARCHIVE"
+          unzip -q -o "$ARCHIVE" -d project
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Build Android APK
+        run: |
+          SETTINGS=$(find project -type f \
+            \( -name "settings.gradle" -o -name "settings.gradle.kts" \) \
+            -print -quit)
+
+          if [ -z "$SETTINGS" ]; then
+            echo "ERROR: settings.gradle not found!"
+            find project -maxdepth 5 -type f
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$SETTINGS")
+          echo "Building in $PROJECT_DIR"
+
+          cd "$PROJECT_DIR"
+          gradle assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AstralEcho-APK
+          path: project/**/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          
